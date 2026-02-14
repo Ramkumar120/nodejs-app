@@ -16,7 +16,28 @@ spec:
     spec:
       containers:
       - name: my-nodejs
-        image: my-nodejs
+        image: apiVersion: apps/v
+kind: Deployment
+metadata:
+  name: my-nodejs-deployment
+  labels:
+    app: my-nodejs
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-nodejs
+  template:
+    metadata:
+      labels:
+        app: my-nodejs
+    spec:
+      containers:
+      - name: my-nodejs
+        image: ramkumar1999/my-nodejs
+        ports:
+        - containerPort: 5006
+
         ports:
         - containerPort: 5006
 
