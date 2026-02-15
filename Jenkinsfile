@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_IMAGE = 'ramkumar1999/my-nodejs:latest'
+        DOCKER_IMAGE = "ramkumar1999/my-nodejs:${env.BUILD_NUMBER}"
         CLUSTER = 'my-cluster'
         REGION = 'us-east-1'
         
@@ -32,11 +32,11 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonar-qube') {
-                    sh """ 
-                    ${env.SCANNER_HOME}/bin/sonar-scanner \
+                    sh ''' 
+                        ${SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectName=my-nodejs \
                         -Dsonar.projectKey=my-nodejs
-                    """
+                    '''
                 }
             }
         }
@@ -52,9 +52,9 @@ pipeline {
                 script{
                    withCredentials([usernamePassword(credentialsId: 'docker-token', passwordVariable: 'password', usernameVariable: 'username')])  {
                         sh '''
-                            echo "${password}" | docker login -u ${username} --password-stdin
-                            docker build -t ${DOCKER_IMAGE} .
-                            docker push ${DOCKER_IMAGE}
+                            echo "$password" | docker login -u ${username} --password-stdin
+                           docker build -t ${DOCKER_IMAGE} .
+                            docker push ${DOCKER_IMAGE} 
                         '''
                     }
                 }
@@ -65,14 +65,21 @@ pipeline {
                 sh "trivy image ${DOCKER_IMAGE}"
             }
         }
-        stage('Deploying to eks cluster') {
+        stage('Update manifest repo') {
             steps {
-                sh """
-                    aws eks update-kubeconfig --name ${env.CLUSTER} --region ${env.REGION}
-                    kubectl get nodes
-                    kubectl apply -f deployment.yaml
-                    kubectl apply -f service.yaml
-                """
+                 withCredentials([usernamePassword(credentialsId: 'git-cred', passwordVariable: 'gitpassword', usernameVariable: 'gitusername')]) {
+                  sh "git clone https://github.com/Ramkumar120/argocd.git"
+                    sh '''
+                    cd argocd/my-app
+                    git config user.email 'jenkins@example.com'
+                    git config user.name 'jenkins'
+                    cat deployment.yaml
+                    sed -i "s|image: ramkumar1999/my-nodejs:.*|image: ramkumar1999/my-nodejs:${BUILD_NUMBER}|" deployment.yaml
+                    git add deployment.yaml
+                    git commit -m "update image tag to $BUILD_NUMBER"
+                    git push https://${gitusername}:${gitpassword}@github.com/Ramkumar120/argocd.git HEAD:main
+                    '''
+                 }
             }
         }
     }
